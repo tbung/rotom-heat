@@ -276,7 +276,8 @@ void sensor_task(void *pvParameters) {
          (uint32_t)(serial >> 32), (uint32_t)serial);
 #endif
 
-  float val;
+  float tval;
+  float hval;
   esp_err_t res;
 
   /* wait for the device to boot. HTU21D sometimes fails to return data
@@ -290,31 +291,28 @@ void sensor_task(void *pvParameters) {
      * sdkconfig for ESP8266, which is enabled by default for this
      * example. see sdkconfig.defaults.esp8266
      */
-    res = si7021_measure_temperature(&dev, &val);
-    if (res != ESP_OK)
+    res = si7021_measure_temperature(&dev, &tval);
+    if (res != ESP_OK) {
       printf("Could not measure temperature: %d (%s)\n", res,
              esp_err_to_name(res));
-    else {
-      printf("Temperature: %.2f\n", val);
-      char buf[8] = {0};
-      sprintf(buf, "%.2f", val);
-      msg_id = esp_mqtt_client_publish(client, "rotom-heat/temperature", buf, 0,
-                                       1, 0);
-      ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+      continue;
     }
 
-    res = si7021_measure_humidity(&dev, &val);
-    if (res != ESP_OK)
+    res = si7021_measure_humidity(&dev, &hval);
+    if (res != ESP_OK) {
       printf("Could not measure humidity: %d (%s)\n", res,
              esp_err_to_name(res));
-    else {
-      printf("Humidity: %.2f\n", val);
-      char buf[8] = {0};
-      sprintf(buf, "%.2f", val);
-      msg_id =
-          esp_mqtt_client_publish(client, "rotom-heat/humidity", buf, 0, 1, 0);
-      ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+      continue;
     }
+
+    printf("Temperature: %.2f\n", tval);
+    printf("Humidity: %.2f\n", hval);
+
+    char buf[64] = {0};
+    sprintf(buf, "{ \"temperature\": %.2f, \"humidity\": %.2f }", tval, hval);
+    msg_id =
+        esp_mqtt_client_publish(client, "rotom-heat/climate", buf, 0, 1, 0);
+    ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
 
     vTaskDelay(pdMS_TO_TICKS(1000));
   }
